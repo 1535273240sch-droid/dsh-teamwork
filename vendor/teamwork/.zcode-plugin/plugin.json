@@ -1,0 +1,23 @@
+{
+  "name": "teamwork",
+  "version": "0.6.0",
+  "description": "Collaborative multi-agent team aligned with Google Antigravity Teamwork: eleven roles, active watchdog deadlock auto-healing, self-succession protocol, shared blackboard, five specialized routing paths, exclusive file ownership, and verification-driven convergence.",
+  "author": {
+    "name": "Teamwork for ZCode"
+  },
+  "homepage": "https://github.com/1535273240sch-droid/zcode-teamwork",
+  "repository": "https://github.com/1535273240sch-droid/zcode-teamwork",
+  "license": "MIT",
+  "keywords": [
+    "multi-agent",
+    "orchestration",
+    "long-horizon",
+    "verification",
+    "file-ownership",
+    "antigravity",
+    "watchdog"
+  ],
+  "commands": "commands",
+  "skills": "skills",
+  "agents": "agents"
+}

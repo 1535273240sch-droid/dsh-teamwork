@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Teamwork 多智能体协作内核",
+    "description": "把 ZCode Teamwork 移植到 DeepSeek Harness：文件独占写锁、派发预算、审计日志、验证交付门禁、看门狗自愈、11 个角色与战役 CLI。"
+  }
+}

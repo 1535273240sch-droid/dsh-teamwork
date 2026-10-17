@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Teamwork Multi-Agent Campaign Kernel",
+    "description": "The ZCode Teamwork kernel ported to DeepSeek Harness: exclusive file-ownership locks, dispatch budget, audit trail, verification gate, watchdog auto-heal, the eleven-role roster and the campaign CLI."
+  }
+}

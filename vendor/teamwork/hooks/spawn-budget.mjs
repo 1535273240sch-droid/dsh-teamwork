@@ -1,0 +1,165 @@
+#!/usr/bin/env node
+// Teamwork - spawn budget guard.
+//
+// PreToolUse hook on Task. Enforces the campaign's dispatch budget.
+//
+// Task is the only tool that starts a Subagent, and a Subagent is where nearly all
+// of a campaign's cost lives. Without a ceiling, a campaign that has lost its way
+// keeps dispatching - each new Worker looks locally justified, and nothing in the
+// conversation ever adds up what the run has spent. The budget is the one number
+// that makes that visible, and it has to be enforced by code, because the model
+// doing the dispatching cannot see its own running total.
+//
+// Counted from .teamwork/events.jsonl, which audit-log.mjs writes for every
+// completed Task call. The count therefore reflects dispatches that actually
+// happened, not ones that were merely attempted.
+//
+// Honest limit: this counts what the hooks saw. 'TaskStop' is not a dispatch, and a
+// dispatch whose PostToolUse never fired (an interrupted run) is not counted. The
+// budget is a cost ceiling, not an audit of every token.
+//
+// Opt-out, in order of precedence:
+//   - env TEAMWORK_SPAWN_BUDGET=off
+//   - campaign.json: "spawnBudget": 0 or null
+//   - campaign.json: "spawnBudget": <n> to set an explicit ceiling
+// Default when unset: DEFAULT_SPAWN_BUDGET.
+//
+// ASCII only: protocol artifact.
+
+import {readFileSync, existsSync} from 'node:fs';
+
+import {readStdin, deny, allowWithContext, statePaths, loadCampaign, isCampaignActive, resolveProjectDir, reserveDispatch, countReservations} from './_lib.mjs';
+import {resolveSpawnBudget, resolveMaxParallel, admittedAtConcurrency, DEFAULT_SPAWN_BUDGET} from '../lib/scheduler.mjs';
+
+// Warn once the run is close enough to the ceiling that the orchestrator should
+// start planning its last milestones rather than discovering the wall.
+const WARN_FRACTION = 0.75;
+
+function emit(obj) {
+	process.stdout.write(JSON.stringify(obj));
+	process.exit(0);
+}
+
+function pick(source, camel, snake) {
+	return source?.[camel] ?? source?.[snake];
+}
+
+// The budget resolver lives in lib/scheduler.mjs and is imported, not duplicated.
+// An earlier version had a copy here and another there; they were identical until
+// one was edited, which is the defect shape that produced the plan.json /
+// campaign.json and 'execution' / 'approved' bugs. One implementation, two callers.
+
+/** Count dispatch events already recorded in the trail. */
+function countDispatches(eventsPath) {
+	if (!existsSync(eventsPath)) return 0;
+	let text;
+	try {
+		text = readFileSync(eventsPath, 'utf8');
+	} catch {
+		return 0;
+	}
+	let count = 0;
+	for (const line of text.split('\n')) {
+		if (line.length === 0) continue;
+		// Substring test first: JSON.parse on every line of a long trail is wasteful
+		// and this hook runs on the critical path of every dispatch.
+		if (!line.includes('"dispatch"')) continue;
+		try {
+			const entry = JSON.parse(line);
+			if (entry?.event === 'dispatch') count++;
+		} catch {
+			// a torn line at the tail of the log is not a dispatch
+		}
+	}
+	return count;
+}
+
+const raw = await readStdin();
+
+let input;
+try {
+	input = JSON.parse(raw);
+} catch {
+	emit({}); // malformed payload: never block a tool call over it
+}
+
+if (process.env.TEAMWORK_SPAWN_BUDGET === 'off') emit({});
+
+// Only Task starts a Subagent. The hook is registered against a Task matcher, but
+// a matcher is configuration and can be widened by mistake; enforcing the tool name
+// here means a wider matcher costs nothing instead of blocking unrelated tools.
+const toolName = pick(input, 'toolName', 'tool_name');
+const toolInput = pick(input, 'toolInput', 'tool_input') ?? {};
+// The real tool name on ZCode 3.14+ is `Agent`; `Task` is its documented alias.
+// The matcher is a case-sensitive regex and does NOT know about the alias, so this
+// hook must accept both - otherwise it never runs on a real machine and the budget
+// silently does nothing. Confirmed against a live install.
+const DISPATCH_TOOLS = new Set(['Task', 'Agent']);
+if (!DISPATCH_TOOLS.has(toolName)) emit({});
+
+const cwd = resolveProjectDir(input);
+const paths = statePaths(cwd);
+
+if (!existsSync(paths.campaign)) emit({});
+
+const campaign = loadCampaign(paths.campaign);
+if (!isCampaignActive(campaign)) emit({});
+
+const budget = resolveSpawnBudget(campaign);
+if (budget === undefined) emit({});
+
+// The committed count comes from the trail, which is written on PostToolUse - after
+// the call has run. A single turn can issue several Agent calls in one batch, and
+// their PreToolUse hooks fire milliseconds apart, all reading the same stale count.
+// Measured on a real machine: two hooks 57ms apart both read zero, and the first
+// trail entry landed 1.8s later, so a batch of N bypassed any budget.
+//
+// Reservations close that window. This hook takes one before it decides, under the
+// mutex, so the second call in the same batch sees the first one's reservation even
+// though neither has completed. The reservation is consumed by audit-log when the
+// dispatch is recorded, and released here if the call is denied.
+const committed = countDispatches(paths.events);
+const reserved = countReservations(paths);
+const used = committed + reserved;
+
+if (used >= budget) {
+	deny(
+		`Teamwork spawn budget exhausted: ${used} of ${budget} Worker dispatches have been used in this campaign` +
+			(reserved > 0 ? ` (${reserved} of them in flight)` : '') +
+			'. ' +
+			'Do not dispatch another Subagent. Finish the current milestone with the team already assigned, ' +
+			'or report to the human that the objective needs more dispatches than the budget allows - ' +
+			'the budget is a deliberate ceiling, and raising it is their decision, not a workaround. ' +
+			'To raise it, set "spawnBudget" in .teamwork/campaign.json.',
+	);
+}
+
+// Concurrency gate, before the budget reservation.
+//
+// The budget caps the total and says nothing about shape: a campaign with sixteen
+// dispatches allowed can still start all sixteen at once. On a real run eight
+// parallel workers were all cut by one upstream teardown at 20:19:47 and six never
+// reported; a total budget would have permitted that run again.
+//
+// In-flight count comes from the reservations, which are taken here and consumed by
+// audit-log when a dispatch reports back. So this needs no new state.
+const maxParallel = resolveMaxParallel(campaign);
+if (maxParallel !== undefined) {
+	const admission = admittedAtConcurrency(reserved, maxParallel);
+	if (!admission.admitted) deny(admission.reason);
+}
+
+// Reserve before allowing: the slot must be visible to the next PreToolUse in this
+// batch, which will run before this call's PostToolUse does.
+const reservation = reserveDispatch(paths, {tool: toolName, agent: toolInput.subagent_type ?? toolInput.agent});
+
+if (used + 1 > budget * WARN_FRACTION) {
+	allowWithContext(
+		`Teamwork spawn budget: this is dispatch ${used + 1} of ${budget}. ` +
+			`${budget - used - 1} left after it. Plan the remaining milestones against that number rather than ` +
+			'finding out at the ceiling.',
+	);
+}
+
+// A denied call never reserves, so there is nothing to release on that path.
+emit({});
