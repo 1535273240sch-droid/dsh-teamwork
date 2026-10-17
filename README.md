@@ -2,7 +2,7 @@
 
 > 把 [zcode-teamwork](https://github.com/1535273240sch-droid/zcode-teamwork) 的多智能体战役内核搬进 DeepSeek Harness，并配一块会动的 2D 角色实时看板。
 
-[![version](https://img.shields.io/badge/version-0.7.0-22d3ee)](package.json)
+[![version](https://img.shields.io/badge/version-0.7.1-22d3ee)](package.json)
 [![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![dsh](https://img.shields.io/badge/DeepSeek%20Harness-bundle-6366f1)](https://github.com/deepseek-ai)
 [![upstream tests](https://img.shields.io/badge/upstream%20tests-1116%20passed-34d399)](https://github.com/1535273240sch-droid/zcode-teamwork)
@@ -14,7 +14,7 @@ Teamwork 是一套“工程队 + 独立监理”式的多智能体工作制度�
 本仓库是它的 **DeepSeek Harness 移植版**，包含两部分：
 
 - **Host 插件**：把 ZCode 的 7 个钩子映射到 DSH 的 `systemPrompt.context`、`agent/pre-step`、`tools/pre-execute`、`tools/post-execute`、`agent/turn-stopping`，并把引擎、CLI、11 个角色、看板、看门狗原样 vendored。
-- **实时看板（0.7.0 新增）**：窗口右侧悬浮的 2D 面板，11 个机器人按编排关系串联，状态来自 `.teamwork` 的真实事件；没有战役时也会待命呼吸，有战役时自动亮起。
+- **实时看板（0.7.x 新增）**：窗口右侧悬浮的 2D 面板，11 个机器人按编排关系串联，状态来自 `.teamwork` 的真实事件；没有战役时也会待命呼吸，有战役时自动亮起。
 
 静态效果：
 
@@ -51,7 +51,8 @@ Teamwork 是一套“工程队 + 独立监理”式的多智能体工作制度�
 - 内容：11 个角色机器人（门卫 / 包工头 / 侦察 / 找茬 / 测试员 / 红队 / 工人 ×2 / 规范矿工 / 混沌红队 / 复现员 / 终审）、状态光晕、流动连线、进度条、实时事件。
 - 数据：只读读取工作区 `.teamwork` 的 `campaign.json`、`events.jsonl`、`verifications/`、`final-audit.md`；**没有真实事件时不会伪造“工作中”**。
 - 动画：纯 SVG + CSS（呼吸、眨眼、扫描、流动虚线、状态过渡），实机 60fps；尊重系统“减少动态效果”。
-- 交互：点机器人看职责与当前状态；`—` 收起，竖条再展开；折叠状态记忆在 localStorage。
+- 交互：点机器人看职责与当前状态；`—` 收起成**圆形悬浮按钮**（机器人头像 + 进度角标），点按钮再展开；折叠状态记忆在 localStorage。
+- 自动行为：战役从无到有时自动展开；战役结束（`.teamwork` 消失）后自动收起；战役进行中手动收起则保持收起，不打扰。
 
 ## 安装
 
@@ -162,6 +163,7 @@ dsh-teamwork/
 
 ## 版本
 
+- **0.7.1**：折叠态改为圆形悬浮按钮 + 战役开始自动展开 / 结束自动收起。
 - **0.7.0**：新增实时 2D 角色看板、`/api/teamwork/live` 只读投影、11 机器人动画与自动展开。
 - **0.6.0**：首个 DSH 移植版（7 个钩子、工具、命令、技能、11 角色、看板、看门狗）。
 

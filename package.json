@@ -1,6 +1,6 @@
 {
   "name": "dsh-teamwork",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "private": true,
   "type": "module",
   "description": "Teamwork multi-agent campaign kernel for DeepSeek Harness with a live 2D role panel: exclusive file ownership, dispatch budget, audit trail, verification gate, watchdog auto-heal, role roster and campaign CLI, ported from zcode-teamwork.",
@@ -27,7 +27,9 @@
     "client": {
       "platform": "web",
       "immediately": true,
-      "inject": ["@deepseek-ai/dsh-client-ui-conversation"]
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-conversation"
+      ]
     }
   },
   "repository": {

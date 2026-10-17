@@ -10,18 +10,26 @@ window.__ModuleLoader__.load({
   factory(require) {
     const React = require('react');
     const h = React.createElement;
-    const { useEffect, useState } = React;
+    const { useEffect, useRef, useState } = React;
 
     const CSS = `
-    .tw-root{position:fixed;top:64px;right:14px;bottom:92px;width:384px;z-index:60;pointer-events:none;
+    .tw-root{position:fixed;top:64px;right:14px;bottom:92px;width:384px;z-index:9990;pointer-events:none;
       font-family:"Microsoft YaHei","Segoe UI",system-ui,sans-serif;color:#e6f0ff}
-    .tw-root.tw-collapsed{top:auto;bottom:120px;width:52px;height:136px}
-    .tw-pill{pointer-events:auto;width:52px;height:136px;border-radius:16px;border:1px solid #203355;
-      background:linear-gradient(180deg,#0b1424,#070d18);display:flex;flex-direction:column;align-items:center;
-      justify-content:center;gap:8px;cursor:pointer;color:#bfe3ff;box-shadow:0 10px 30px #000a}
-    .tw-pill:hover{border-color:#2c4a7f}
-    .tw-pill-text{writing-mode:vertical-rl;letter-spacing:4px;font-size:11px}
-    .tw-pill-count{font-size:9px;color:#7f93bb}
+    .tw-root.tw-collapsed{top:auto;bottom:96px;right:18px;width:56px;height:56px}
+    .tw-fab{pointer-events:auto;position:relative;width:56px;height:56px;border-radius:50%;cursor:pointer;padding:0;
+      border:1.5px solid #22d3ee;background:radial-gradient(circle at 30% 25%,#1d4f78,#08111f 72%);
+      display:grid;place-items:center;box-shadow:0 0 0 1px #0008,0 10px 26px #000b,0 0 30px #22d3ee88;
+      animation:tw-fab 2.8s ease-in-out infinite}
+    .tw-fab:hover{border-color:#67e8f9;box-shadow:0 0 0 1px #0008,0 10px 30px #000c,0 0 32px #22d3eeaa}
+    .tw-fab svg{width:36px;height:36px;filter:drop-shadow(0 0 7px #22d3ee99)}
+    .tw-fab-badge{position:absolute;right:-4px;top:-4px;min-width:18px;height:18px;border-radius:9px;padding:0 4px;
+      background:#0b2a22;color:#6ee7b7;border:1px solid #1d5c4a;font-size:9px;line-height:16px;text-align:center;
+      font-weight:600;letter-spacing:.3px}
+    .tw-fab-tip{position:absolute;right:64px;top:50%;transform:translateY(-50%);white-space:nowrap;
+      font-size:10px;color:#bfe3ff;background:#0a1425ee;border:1px solid #28446f;border-radius:8px;padding:4px 8px;
+      opacity:0;pointer-events:none;transition:opacity .2s}
+    .tw-fab:hover .tw-fab-tip{opacity:1}
+    @keyframes tw-fab{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
     .tw-panel{pointer-events:auto;width:100%;height:100%;border-radius:20px;border:1px solid #203355;
       background:linear-gradient(180deg,#0b1424f5 0%,#070d18f7 100%);
       box-shadow:0 30px 70px #000c,inset 0 1px 0 #ffffff10;display:flex;flex-direction:column;overflow:hidden;position:relative}
@@ -197,6 +205,17 @@ window.__ModuleLoader__.load({
       return `M${ax} ${ay} C${ax} ${my} ${bx} ${my} ${bx} ${by}`;
     }
 
+    const FAB_SVG = `
+      <ellipse cx="32" cy="56" rx="15" ry="3" fill="#000" opacity=".55"/>
+      <rect x="12" y="18" width="40" height="30" rx="12" fill="#0b1b30" stroke="#22d3ee" stroke-width="2"/>
+      <rect x="20" y="26" width="24" height="12" rx="6" fill="#050b14" stroke="#67e8f9" stroke-width="1.2"/>
+      <circle cx="27" cy="32" r="2.5" fill="#cffafe"/>
+      <circle cx="37" cy="32" r="2.5" fill="#cffafe"/>
+      <path d="M26 44h12" stroke="#67e8f9" stroke-width="2" stroke-linecap="round" opacity=".7"/>
+      <path d="M32 14v-4" stroke="#22d3ee" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="32" cy="7" r="2.2" fill="#a5f3fc"/>
+    `;
+
     function readCollapsed() {
       try {
         return window.localStorage.getItem('dsh-teamwork:collapsed') === '1';
@@ -259,6 +278,24 @@ window.__ModuleLoader__.load({
         };
       }, [cwd]);
 
+      const prevActive = useRef(false);
+      const seenActive = useRef(false);
+
+      useEffect(() => {
+        const isActive = data.active === true;
+        if (isActive && !prevActive.current) {
+          // A campaign has just started: bring the panel back automatically.
+          setCollapsed(false);
+          saveCollapsed(false);
+        } else if (!isActive && prevActive.current && seenActive.current) {
+          // The campaign is gone: fall back to the small floating button.
+          setCollapsed(true);
+          saveCollapsed(true);
+        }
+        if (isActive) seenActive.current = true;
+        prevActive.current = isActive;
+      }, [data.active]);
+
       const robots = data.robots || {};
       const stateOf = (id) => robots[id] || 'idle';
       const total = data.progress?.total ?? 0;
@@ -275,10 +312,20 @@ window.__ModuleLoader__.load({
 
       if (collapsed) {
         return h('div', { className: 'tw-root tw-collapsed' },
-          h('button', { className: 'tw-pill', onClick: toggle, title: '展开团队实时看板' },
-            h('span', { className: 'tw-live-dot' }),
-            h('span', { className: 'tw-pill-text' }, '团队'),
-            h('span', { className: 'tw-pill-count' }, total > 0 ? `${done}/${total}` : '待命'),
+          h('style', null, CSS),
+          h('button', {
+            className: 'tw-fab',
+            onClick: toggle,
+            title: '展开团队实时看板',
+            'aria-label': '展开团队实时看板',
+          },
+            h('span', { className: 'tw-fab-tip' }, '展开团队看板'),
+            h('svg', {
+              viewBox: '0 0 64 64',
+              'aria-hidden': true,
+              dangerouslySetInnerHTML: { __html: FAB_SVG },
+            }),
+            h('span', { className: 'tw-fab-badge' }, total > 0 ? `${done}/${total}` : '·'),
           ),
         );
       }
