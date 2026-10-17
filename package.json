@@ -30,5 +30,13 @@
       "inject": ["@deepseek-ai/dsh-client-ui-conversation"]
     }
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/1535273240sch-droid/dsh-teamwork.git"
+  },
+  "homepage": "https://github.com/1535273240sch-droid/dsh-teamwork",
+  "bugs": {
+    "url": "https://github.com/1535273240sch-droid/dsh-teamwork/issues"
+  },
   "license": "MIT"
 }
